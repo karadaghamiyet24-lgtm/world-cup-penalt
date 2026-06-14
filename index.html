@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>World Cup Penalty</title>
+<style>
+body{margin:0;font-family:Arial;background:#0b7d2b;color:white;text-align:center}
+button,select{padding:12px;margin:8px;font-size:16px;border-radius:10px;border:none}
+button{background:gold;font-weight:bold}
+#game{display:none}
+.stadium{width:95%;max-width:520px;height:560px;margin:auto;position:relative;background:radial-gradient(circle,#36b44a,#0a7c2b);border:5px solid white;border-radius:22px;overflow:hidden}
+.goal{width:370px;height:190px;position:absolute;top:35px;left:50%;transform:translateX(-50%);border-left:12px solid #f5f5f5;border-right:12px solid #f5f5f5;border-top:12px solid #f5f5f5;background:linear-gradient(90deg,rgba(0,0,0,.18) 2px,transparent 2px),linear-gradient(rgba(0,0,0,.18) 2px,transparent 2px),linear-gradient(#eefaff,#fff);background-size:30px 30px;box-shadow:0 12px 18px rgba(0,0,0,.35);z-index:1}
+.goal::before,.goal::after{content:"";position:absolute;top:18px;width:22px;height:180px;background:#d9d9d9}
+.goal::before{left:-36px;transform:skewY(-12deg)}
+.goal::after{right:-36px;transform:skewY(12deg)}
+.keeper{width:90px;height:130px;position:absolute;top:105px;left:50%;transform:translateX(-50%);transition:all .45s ease;z-index:5}
+.head{width:36px;height:36px;background:#f2c58b;border-radius:50%;margin:auto;border:2px solid #222}
+.body{width:58px;height:52px;background:linear-gradient(#ff3232,#9e0000);border-radius:15px;margin:3px auto;position:relative}
+.body::before,.body::after{content:"";position:absolute;width:18px;height:65px;background:#ff3232;top:5px;border-radius:12px}
+.body::before{left:-20px;transform:rotate(35deg)}
+.body::after{right:-20px;transform:rotate(-35deg)}
+.keeper::before,.keeper::after{content:"";position:absolute;width:20px;height:55px;background:#111;top:88px;border-radius:12px}
+.keeper::before{left:25px;transform:rotate(10deg)}
+.keeper::after{right:25px;transform:rotate(-10deg)}
+.ball{width:52px;height:52px;border-radius:50%;background:white;color:black;border:3px solid black;position:absolute;bottom:55px;left:50%;transform:translateX(-50%);font-size:32px;line-height:52px;z-index:10;touch-action:none;user-select:none}
+.aim{width:24px;height:24px;border:3px solid yellow;border-radius:50%;position:absolute;display:none;z-index:9}
+.score{font-size:18px;margin:10px}
+table{width:95%;max-width:520px;margin:15px auto;background:white;color:black;border-collapse:collapse}
+td,th{border:1px solid black;padding:8px}
+</style>
+</head>
+<body>
+
+<h1>🏆 World Cup Penalty</h1>
+
+<div id="menu">
+  <h2>Ülkeni Seç</h2>
+  <select id="country">
+    <option>Türkiye</option><option>Brezilya</option><option>Arjantin</option>
+    <option>Fransa</option><option>Almanya</option><option>İspanya</option>
+    <option>İngiltere</option><option>Portekiz</option>
+  </select><br>
+  <button onclick="startGame()">Oyuna Başla</button>
+</div>
+
+<div id="game">
+  <h2 id="teamName"></h2>
+  <div class="score">
+    Gol: <span id="goals">0</span> |
+    Kaçan: <span id="miss">0</span> |
+    Hak: <span id="shots">∞</span>
+  </div>
+
+  <div class="stadium" id="stadium">
+    <div class="goal"></div>
+    <div class="keeper" id="keeper">
+      <div class="head"></div>
+      <div class="body"></div>
+    </div>
+    <div class="aim" id="aim"></div>
+    <div class="ball" id="ball">⚽</div>
+  </div>
+
+  <h3>Topu kaleye sürükle ve bırak</h3>
+  <h2 id="result"></h2>
+
+  <h2>🌍 Ülkeler Sıralaması</h2>
+  <table>
+    <thead><tr><th>Sıra</th><th>Ülke</th><th>Gol</th></tr></thead>
+    <tbody id="ranking"></tbody>
+  </table>
+
+  <button onclick="restart()">Yeniden Başla</button>
+</div>
+
+<script>
+let selectedCountry="";
+let goals=0, miss=0, canShoot=true;
+let targetX=0, targetY=0, dragging=false;
+
+let countries=[
+{name:"Türkiye",point:0},{name:"Brezilya",point:0},{name:"Arjantin",point:0},
+{name:"Fransa",point:0},{name:"Almanya",point:0},{name:"İspanya",point:0},
+{name:"İngiltere",point:0},{name:"Portekiz",point:0}
+];
+
+const ball=document.getElementById("ball");
+const stadium=document.getElementById("stadium");
+const aim=document.getElementById("aim");
+const keeper=document.getElementById("keeper");
+
+function startGame(){
+  selectedCountry=document.getElementById("country").value;
+  document.getElementById("menu").style.display="none";
+  document.getElementById("game").style.display="block";
+  document.getElementById("teamName").innerText=selectedCountry+" ile oynuyorsun";
+  updateRanking();
+  resetBall();
+}
+
+function pos(e){
+  if(e.touches) return {x:e.touches[0].clientX,y:e.touches[0].clientY};
+  return {x:e.clientX,y:e.clientY};
+}
+
+ball.addEventListener("mousedown",startDrag);
+ball.addEventListener("touchstart",startDrag);
+document.addEventListener("mousemove",drag);
+document.addEventListener("touchmove",drag);
+document.addEventListener("mouseup",shoot);
+document.addEventListener("touchend",shoot);
+
+function startDrag(){
+  if(!canShoot) return;
+  dragging=true;
+  aim.style.display="block";
+}
+
+function drag(e){
+  if(!dragging) return;
+  let p=pos(e);
+  let r=stadium.getBoundingClientRect();
+
+  targetX=p.x-r.left;
+  targetY=p.y-r.top;
+
+  if(targetX<45) targetX=45;
+  if(targetX>r.width-45) targetX=r.width-45;
+  if(targetY<40) targetY=40;
+  if(targetY>230) targetY=230;
+
+  aim.style.left=(targetX-12)+"px";
+  aim.style.top=(targetY-12)+"px";
+}
+
+function shoot(){
+  if(!dragging || !canShoot) return;
+
+  dragging=false;
+  canShoot=false;
+  aim.style.display="none";
+
+  let keeperSide=Math.floor(Math.random()*3);
+
+  if(keeperSide===0){
+    keeper.style.left="25%";
+    keeper.style.top="85px";
+    keeper.style.transform="translateX(-50%) rotate(-65deg)";
+  }else if(keeperSide===1){
+    keeper.style.left="50%";
+    keeper.style.top="90px";
+    keeper.style.transform="translateX(-50%) scale(1.2)";
+  }else{
+    keeper.style.left="75%";
+    keeper.style.top="85px";
+    keeper.style.transform="translateX(-50%) rotate(65deg)";
+  }
+
+  ball.style.transition="all .7s cubic-bezier(.2,.8,.2,1)";
+  ball.style.left=targetX+"px";
+  ball.style.top=targetY+"px";
+  ball.style.bottom="auto";
+  ball.style.transform="translate(-50%,-50%) scale(.65) rotate(720deg)";
+
+  setTimeout(()=>checkGoal(keeperSide),750);
+}
+
+function checkGoal(keeperSide){
+  let r=stadium.getBoundingClientRect();
+  let goalLeft=(r.width-370)/2;
+  let goalRight=goalLeft+370;
+  let goalTop=35;
+  let goalBottom=225;
+
+  let inside=targetX>goalLeft && targetX<goalRight && targetY>goalTop && targetY<goalBottom;
+
+  let shotSide;
+  if(targetX<goalLeft+123) shotSide=0;
+  else if(targetX<goalLeft+246) shotSide=1;
+  else shotSide=2;
+
+  if(inside && shotSide!==keeperSide){
+    goals++;
+    document.getElementById("result").innerText="GOOOOL! ⚽🔥";
+
+    countries.forEach(c=>{
+      if(c.name===selectedCountry){
+        c.point=goals;
+      }
+    });
+
+    updateRanking();
+
+  }else if(inside && shotSide===keeperSide){
+    miss++;
+    document.getElementById("result").innerText="Kaleci kurtardı! 🧤";
+  }else{
+    miss++;
+    document.getElementById("result").innerText="Dışarı gitti! ❌";
+  }
+
+  document.getElementById("goals").innerText=goals;
+  document.getElementById("miss").innerText=miss;
+
+  setTimeout(resetBall,900);
+}
+
+function resetBall(){
+  canShoot=true;
+  ball.style.transition="none";
+  ball.style.left="50%";
+  ball.style.top="auto";
+  ball.style.bottom="55px";
+  ball.style.transform="translateX(-50%) scale(1)";
+  keeper.style.left="50%";
+  keeper.style.top="105px";
+  keeper.style.transform="translateX(-50%)";
+}
+
+function updateRanking(){
+  countries.sort((a,b)=>b.point-a.point);
+  let html="";
+  countries.forEach((c,i)=>{
+    html+=`<tr><td>${i+1}</td><td>${c.name}</td><td>${c.point}</td></tr>`;
+  });
+  document.getElementById("ranking").innerHTML=html;
+}
+
+function restart(){
+  goals=0;
+  miss=0;
+  canShoot=true;
+
+  countries.forEach(c=>{
+    if(c.name===selectedCountry){
+      c.point=0;
+    }
+  });
+
+  document.getElementById("goals").innerText=0;
+  document.getElementById("miss").innerText=0;
+  document.getElementById("result").innerText="";
+  document.getElementById("menu").style.display="block";
+  document.getElementById("game").style.display="none";
+}
+</script>
+
+</body>
+</html>
